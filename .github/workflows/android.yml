@@ -1,0 +1,41 @@
+name: Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK 21
+        run: |
+          brew install openjdk@21 || brew upgrade openjdk@21 || true
+          ls -d /opt/homebrew/opt/openjdk@21 /usr/local/opt/openjdk@21 2>/dev/null || true
+
+      - name: Prepare Android SDK
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMGR" ]; then
+            yes | "$SDKMGR" --licenses > /dev/null 2>&1 || true
+            "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          fi
+
+      - name: Ensure Gradle
+        run: command -v gradle || brew install gradle
+
+      - name: Build release APK
+        run: bash scripts/build-apk.sh
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: veliora-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
